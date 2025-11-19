@@ -1,0 +1,137 @@
+SFTP Connectivity Failure Analysis
+Port 50022 vs. Port 22
+Date: [Insert Date]
+Prepared By: [Your Name]
+
+Slide 2: Executive Summary
+(Layout: Three key points with icons)
+
+Key Findings at a Glance
+✅ Port 22: Fully Operational
+
+SFTP and SCP connections successful.
+
+❌ Port 50022: Partially Operational
+
+SCP: Connection and file transfer successful.
+
+SFTP: Connection fails in both WinSCP and Python Paramiko.
+
+🎯 Root Cause: A server-side configuration issue on port 50022, specifically related to the SFTP subsystem.
+
+Slide 3: Observed Behavior: WinSCP
+(Layout: Split screen showing two WinSCP windows)
+
+Client Evidence: WinSCP
+Port 22: SUCCESS	Port 50022: FAILED
+[INSERT SCREENSHOT HERE]
+WinSCP successfully connected via SFTP, showing directory listing.	[INSERT SCREENSHOT HERE]
+WinSCP error: "Cannot initialize SFTP protocol. Is the host running an SFTP server?"
+Conclusion: The failure is consistent across the GUI client and is specific to the SFTP protocol on the non-standard port.
+
+Slide 4: Observed Behavior: Python Paramiko
+(Layout: Code snippets side-by-side)
+
+Client Evidence: Python Paramiko
+Port 22: SUCCESS
+
+python
+import paramiko
+transport = paramiko.Transport(("host", 22))
+transport.connect(username="user", password="pass")
+sftp = paramiko.SFTPClient.from_transport(transport) # Works
+sftp.listdir('/')
+[INSERT SCREENSHOT OF SUCCESSFUL SCRIPT RUN]
+
+Port 50022: FAILED
+
+python
+import paramiko
+transport = paramiko.Transport(("host", 50022))
+transport.connect(username="user", password="pass")
+sftp = paramiko.SFTPClient.from_transport(transport) # Fails!
+# SSHException: Channel closed.
+[INSERT SCREENSHOT OF SCRIPT EXCEPTION]
+
+Conclusion: The issue is reproducible programmatically, ruling out a client-specific bug.
+
+Slide 5: The Critical Difference: SCP vs. SFTP
+(Layout: Simple diagrams explaining the protocols)
+
+Why Does SCP Work When SFTP Fails?
+SCP (Secure Copy)
+
+How it works: The client runs the remote scp command.
+
+Analogy: Like using SSH to execute a single command.
+
+Result: If the scp binary exists on the QNX server, it works.
+
+text
+Client ---(ssh)---> Server: "run `scp` command"
+SFTP (SSH File Transfer Protocol)
+
+How it works: The client requests a dedicated SFTP Subsystem.
+
+Analogy: Like asking the server to open a specialized "file management app".
+
+Result: If the subsystem isn't configured, the request is rejected.
+
+text
+Client ---(ssh)---> Server: "start the 'sftp' subsystem"
+Server ---(ssh)---> Client: "Error: Unknown subsystem"
+Slide 6: Root Cause and Solution
+(Layout: Problem on the left, Solution on the right)
+
+Root Cause & Resolution
+The Problem	The Solution
+The SSH configuration for port 50022 is missing the SFTP subsystem directive.	Edit the QNX server's sshd_config for port 50022.
+Incorrect/Missing Config:
+Port 50022
+# Subsystem sftp ... is MISSING!	Add the correct directive:
+Port 50022
+Subsystem sftp /usr/libexec/sftp-server
+(Path may vary on QNX)
+This explains the protocol-specific failure while keeping basic SSH and SCP functional.	Restart the SSH service to apply the changes.
+Slide 7: Conclusion and Next Steps
+(Layout: Clear summary and actionable items)
+
+Summary & Recommendations
+Confirmed: The issue is a server misconfiguration, not a network block or client bug.
+
+Immediate Action Required:
+
+Provide this analysis to the QNX system administrator.
+
+Request a configuration check of the SSH service for port 50022.
+
+Verify the correct path to the sftp-server binary on the QNX platform.
+
+Expected Outcome: Once the Subsystem sftp configuration is added to port 50022, SFTP connectivity will be restored, matching the functionality of port 22.
+
+Questions?
+
+Instructions for Adding Screenshots:
+WinSCP Success (Slide 3):
+
+Connect to the QNX system on port 22 using SFTP in WinSCP.
+
+Take a screenshot showing the file browser interface.
+
+WinSCP Failure (Slide 3):
+
+Attempt to connect to the QNX system on port 50022 using SFTP.
+
+Take a screenshot of the error dialog box.
+
+Paramiko Success (Slide 4):
+
+Run your working Python script for port 22.
+
+Take a screenshot of the terminal/console showing a successful directory listing.
+
+Paramiko Failure (Slide 4):
+
+Run your failing Python script for port 50022.
+
+Take a screenshot of the terminal/console showing the exception traceback (like SSHException: Channel closed).
